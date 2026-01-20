@@ -3613,6 +3613,7 @@
       "Microsoft.AspNetCore.OpenApi >= 10.0.2",
       "Microsoft.EntityFrameworkCore.Design >= 10.0.2",
       "Microsoft.EntityFrameworkCore.SqlServer >= 10.0.2",
+      "Microsoft.OpenApi >= 2.3.0",
       "Swashbuckle.AspNetCore >= 10.1.0"
     ]
   },
@@ -3680,6 +3681,10 @@
           "Microsoft.EntityFrameworkCore.SqlServer": {
             "target": "Package",
             "version": "[10.0.2, )"
+          },
+          "Microsoft.OpenApi": {
+            "target": "Package",
+            "version": "[2.3.0, )"
           },
           "Swashbuckle.AspNetCore": {
             "target": "Package",
