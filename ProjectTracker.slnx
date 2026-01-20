@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ProjectTracker.Api/ProjectTracker.Api.csproj" />
+  <Project Path="ProjectTracker.Tests/ProjectTracker.Tests.csproj" />
+</Solution>
