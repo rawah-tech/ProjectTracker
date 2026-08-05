@@ -1243,6 +1243,7 @@
           "Microsoft.AspNetCore.Authentication.JwtBearer": "10.0.2",
           "Microsoft.AspNetCore.OpenApi": "10.0.2",
           "Microsoft.EntityFrameworkCore.SqlServer": "10.0.2",
+          "Microsoft.OpenApi": "2.3.0",
           "Swashbuckle.AspNetCore": "10.1.0"
         },
         "compile": {
