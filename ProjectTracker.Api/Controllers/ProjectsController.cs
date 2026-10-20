@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using ProjectTracker.Api.Data;
 using ProjectTracker.Api.Dtos;
 using ProjectTracker.Api.Models;
 using ProjectTracker.Api.Services;
@@ -13,78 +11,86 @@ namespace ProjectTracker.Api.Controllers;
 [Authorize]
 public class ProjectsController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly ProjectService _projects;
 
-    public ProjectsController(AppDbContext db)
-    {
-        _db = db;
-    }
+    public ProjectsController(ProjectService projects) => _projects = projects;
 
     [HttpPost]
-    public async Task<ActionResult<ProjectResponse>> Create(CreateProjectRequest req)
+    public async Task<ActionResult<ProjectResponse>> Create(
+        CreateProjectRequest request,
+        CancellationToken cancellationToken)
     {
-        var userId = UserContext.GetUserId(User);
-
-        var project = new Project
+        if (!UserContext.TryGetUserId(User, out var userId))
         {
-            Name = req.Name.Trim(),
-            Description = req.Description.Trim(),
-            UserId = userId
-        };
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
 
-        _db.Projects.Add(project);
-        await _db.SaveChangesAsync();
+        var project = await _projects.CreateProjectAsync(
+            userId,
+            request.Name,
+            request.Description,
+            cancellationToken);
 
-        return Ok(new ProjectResponse(project.Id, project.Name, project.Description));
+        return Ok(ToResponse(project));
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ProjectResponse>>> List()
+    public async Task<ActionResult<List<ProjectResponse>>> List(CancellationToken cancellationToken)
     {
-        var userId = UserContext.GetUserId(User);
+        if (!UserContext.TryGetUserId(User, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
 
-        var projects = await _db.Projects
-            .Where(p => p.UserId == userId)
-            .OrderByDescending(p => p.Id)
-            .Select(p => new ProjectResponse(p.Id, p.Name, p.Description))
-            .ToListAsync();
+        var projects = await _projects.ListOwnedProjectsAsync(userId, cancellationToken);
+        var response = projects.Select(ToResponse).ToList();
 
-        return Ok(projects);
+        return Ok(response);
     }
 
     [HttpPut("{id:guid}")]
-    public async Task<ActionResult<ProjectResponse>> Update(Guid id, UpdateProjectRequest req)
+    public async Task<ActionResult<ProjectResponse>> Update(
+        Guid id,
+        UpdateProjectRequest request,
+        CancellationToken cancellationToken)
     {
-        var userId = UserContext.GetUserId(User);
+        if (!UserContext.TryGetUserId(User, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
 
-        var project = await _db.Projects
-            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+        var project = await _projects.UpdateOwnedProjectAsync(
+            userId,
+            id,
+            request.Name,
+            request.Description,
+            cancellationToken);
 
-        if (project == null)
+        if (project is null)
+        {
             return NotFound(new { message = "Project not found." });
+        }
 
-        project.Name = req.Name.Trim();
-        project.Description = req.Description.Trim();
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new ProjectResponse(project.Id, project.Name, project.Description));
+        return Ok(ToResponse(project));
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
-        var userId = UserContext.GetUserId(User);
+        if (!UserContext.TryGetUserId(User, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
 
-        var project = await _db.Projects
-            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
-
-        if (project == null)
+        var deleted = await _projects.DeleteOwnedProjectAsync(userId, id, cancellationToken);
+        if (!deleted)
+        {
             return NotFound(new { message = "Project not found." });
-
-        _db.Projects.Remove(project);
-        await _db.SaveChangesAsync();
+        }
 
         return NoContent();
     }
+
+    private static ProjectResponse ToResponse(Project project) =>
+        new(project.Id, project.Name, project.Description);
 }
