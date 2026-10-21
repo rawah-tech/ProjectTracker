@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using ProjectTracker.Api.Data;
 using ProjectTracker.Api.Dtos;
 using ProjectTracker.Api.Models;
 using ProjectTracker.Api.Services;
@@ -12,106 +10,101 @@ namespace ProjectTracker.Api.Controllers;
 [Authorize]
 public class TasksController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly TaskService _tasks;
 
-    public TasksController(AppDbContext db)
-    {
-        _db = db;
-    }
+    public TasksController(TaskService tasks) => _tasks = tasks;
 
-    // Add a task to a specific project (owned by the current user)
     [HttpPost("projects/{projectId:guid}/tasks")]
-    public async Task<ActionResult<TaskResponse>> Add(Guid projectId, AddTaskRequest req)
+    public async Task<ActionResult<TaskResponse>> Add(
+        Guid projectId,
+        AddTaskRequest request,
+        CancellationToken cancellationToken)
     {
-        var userId = UserContext.GetUserId(User);
-
-        var project = await _db.Projects
-            .FirstOrDefaultAsync(p => p.Id == projectId && p.UserId == userId);
-
-        if (project == null)
-            return NotFound(new { message = "Project not found." });
-
-        var task = new ProjectTask
+        if (!UserContext.TryGetUserId(User, out var userId))
         {
-            ProjectId = projectId,
-            Title = req.Title.Trim(),
-            Description = req.Description.Trim(),
-            DueDate = req.DueDate,
-            IsCompleted = false
-        };
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
 
-        _db.Tasks.Add(task);
-        await _db.SaveChangesAsync();
+        var task = await _tasks.AddTaskAsync(
+            userId,
+            projectId,
+            request.Title,
+            request.Description,
+            request.DueDate,
+            cancellationToken);
 
-        return Ok(new TaskResponse(task.Id, task.ProjectId, task.Title, task.Description, task.DueDate, task.IsCompleted));
-    }
-
-    // Retrieve tasks for a specific project (owned by the current user)
-    [HttpGet("projects/{projectId:guid}/tasks")]
-    public async Task<ActionResult<List<TaskResponse>>> ListByProject(Guid projectId)
-    {
-        var userId = UserContext.GetUserId(User);
-
-        var projectExists = await _db.Projects
-            .AnyAsync(p => p.Id == projectId && p.UserId == userId);
-
-        if (!projectExists)
+        if (task is null)
+        {
             return NotFound(new { message = "Project not found." });
+        }
 
-        var tasks = await _db.Tasks
-            .Where(t => t.ProjectId == projectId)
-            .OrderBy(t => t.DueDate)
-            .Select(t => new TaskResponse(t.Id, t.ProjectId, t.Title, t.Description, t.DueDate, t.IsCompleted))
-            .ToListAsync();
-
-        return Ok(tasks);
+        return Ok(ToResponse(task));
     }
 
-    // Update a task (only if it belongs to a project owned by current user)
+    [HttpGet("projects/{projectId:guid}/tasks")]
+    public async Task<ActionResult<List<TaskResponse>>> ListByProject(
+        Guid projectId,
+        CancellationToken cancellationToken)
+    {
+        if (!UserContext.TryGetUserId(User, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
+
+        var tasks = await _tasks.ListOwnedProjectTasksAsync(userId, projectId, cancellationToken);
+        if (tasks is null)
+        {
+            return NotFound(new { message = "Project not found." });
+        }
+
+        return Ok(tasks.Select(ToResponse).ToList());
+    }
+
     [HttpPut("tasks/{taskId:guid}")]
-    public async Task<ActionResult<TaskResponse>> Update(Guid taskId, UpdateTaskRequest req)
+    public async Task<ActionResult<TaskResponse>> Update(
+        Guid taskId,
+        UpdateTaskRequest request,
+        CancellationToken cancellationToken)
     {
-        var userId = UserContext.GetUserId(User);
+        if (!UserContext.TryGetUserId(User, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
 
-        var task = await _db.Tasks
-            .Include(t => t.Project)
-            .FirstOrDefaultAsync(t => t.Id == taskId);
+        var task = await _tasks.UpdateOwnedTaskAsync(
+            userId,
+            taskId,
+            request.Title,
+            request.Description,
+            request.DueDate,
+            request.IsCompleted,
+            cancellationToken);
 
-        if (task == null)
+        if (task is null)
+        {
             return NotFound(new { message = "Task not found." });
+        }
 
-        if (task.Project == null || task.Project.UserId != userId)
-            return NotFound(new { message = "Task not found." }); // hide existence
-
-        task.Title = req.Title.Trim();
-        task.Description = req.Description.Trim();
-        task.DueDate = req.DueDate;
-        task.IsCompleted = req.IsCompleted;
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new TaskResponse(task.Id, task.ProjectId, task.Title, task.Description, task.DueDate, task.IsCompleted));
+        return Ok(ToResponse(task));
     }
 
-    // Delete a task (only if it belongs to a project owned by current user)
     [HttpDelete("tasks/{taskId:guid}")]
-    public async Task<IActionResult> Delete(Guid taskId)
+    public async Task<IActionResult> Delete(Guid taskId, CancellationToken cancellationToken)
     {
-        var userId = UserContext.GetUserId(User);
+        if (!UserContext.TryGetUserId(User, out var userId))
+        {
+            return Unauthorized(new { message = "Invalid authentication token." });
+        }
 
-        var task = await _db.Tasks
-            .Include(t => t.Project)
-            .FirstOrDefaultAsync(t => t.Id == taskId);
-
-        if (task == null)
+        var deleted = await _tasks.DeleteOwnedTaskAsync(userId, taskId, cancellationToken);
+        if (!deleted)
+        {
             return NotFound(new { message = "Task not found." });
-
-        if (task.Project == null || task.Project.UserId != userId)
-            return NotFound(new { message = "Task not found." });
-
-        _db.Tasks.Remove(task);
-        await _db.SaveChangesAsync();
+        }
 
         return NoContent();
     }
+
+    private static TaskResponse ToResponse(ProjectTask task) =>
+        new(task.Id, task.ProjectId, task.Title, task.Description, task.DueDate, task.IsCompleted);
 }

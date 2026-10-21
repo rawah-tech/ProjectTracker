@@ -1,6 +1,49 @@
-@ProjectTracker.Api_HostAddress = http://localhost:5083
+@baseUrl = http://localhost:5083
+@email = replace-with-a-unique-email@example.test
+@password = REPLACE_WITH_A_STRONG_TEST_PASSWORD
+@token = REPLACE_WITH_JWT_FROM_REGISTER_OR_LOGIN
+@projectId = REPLACE_WITH_PROJECT_ID
 
-GET {{ProjectTracker.Api_HostAddress}}/weatherforecast/
+### Register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}"
+}
+
+### Create a project
+POST {{baseUrl}}/projects
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Portfolio project",
+  "description": "Created from the local HTTP examples"
+}
+
+### List projects
+GET {{baseUrl}}/projects
+Authorization: Bearer {{token}}
 Accept: application/json
 
-###
+### Add a task
+POST {{baseUrl}}/projects/{{projectId}}/tasks
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Review the API",
+  "description": "Exercise the authenticated task endpoint",
+  "dueDate": "2030-06-30T12:00:00Z"
+}
