@@ -30,7 +30,7 @@ Versions are taken from the project files.
 | Password hashing | BCrypt.Net-Next | 4.0.3 |
 | API documentation | Swashbuckle.AspNetCore | 10.1.0 |
 | OpenAPI integration | Microsoft.AspNetCore.OpenApi | 10.0.2 |
-| OpenAPI object model | Microsoft.OpenApi | 2.3.0 |
+| OpenAPI object model | Microsoft.OpenApi | 2.7.5 |
 | Unit testing | xUnit / xUnit VS runner | 2.9.3 / 3.1.4 |
 | API integration testing | Microsoft.AspNetCore.Mvc.Testing | 10.0.2 |
 | Test data provider | EF Core InMemory | 10.0.2 |
